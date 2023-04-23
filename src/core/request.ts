@@ -1,5 +1,5 @@
 import { defaultsDeep, inRange, random } from 'lodash';
-import { createHmac } from 'crypto';
+const sjcl = require('sjcl');
 import { Subject } from 'rxjs';
 import { AttemptOptions, retry } from '@lifeomic/attempt';
 import * as request from 'request-promise';
@@ -106,10 +106,30 @@ export class Request {
     }
   }
 
+  public encryptData(data: string) {
+    // let key = CryptoJS.SHA256(this.client.state.signatureKey);
+    // let encryptedString: any;
+    // if (typeof data == 'string') {
+    //   data = data.slice();
+    //   encryptedString = CryptoJS.AES.encrypt(data, key, {
+    //     iv: iv,
+    //     mode: CryptoJS.mode.CBC,
+    //     padding: CryptoJS.pad.Pkcs7,
+    //   });
+    // } else {
+    //   encryptedString = CryptoJS.AES.encrypt(JSON.stringify(data), key, {
+    //     iv: iv,
+    //     mode: CryptoJS.mode.CBC,
+    //     padding: CryptoJS.pad.Pkcs7,
+    //   });
+    // }
+    // return encryptedString.toString();
+    const myBitArray = sjcl.hash.sha256.hash(data);
+    return sjcl.codec.hex.fromBits(myBitArray);
+  }
+
   public signature(data: string) {
-    return createHmac('sha256', this.client.state.signatureKey)
-      .update(data)
-      .digest('hex');
+    return this.encryptData(data);
   }
 
   public sign(payload: Payload): SignedPost {
@@ -125,11 +145,7 @@ export class Request {
     const term = random(2, 3) * 1000 + size + random(15, 20) * 1000;
     const textChangeEventCount = Math.round(size / random(2, 3)) || 1;
     const data = `${size} ${term} ${textChangeEventCount} ${Date.now()}`;
-    const signature = Buffer.from(
-      createHmac('sha256', this.client.state.userBreadcrumbKey)
-        .update(data)
-        .digest('hex'),
-    ).toString('base64');
+    const signature = Buffer.from(this.encryptData(data)).toString('base64');
     const body = Buffer.from(data).toString('base64');
     return `${signature}\n${body}\n`;
   }
